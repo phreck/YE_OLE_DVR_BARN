@@ -1,0 +1,91 @@
+version: "3"
+
+services:
+  sonarr:
+    container_name: sonarr
+    restart: unless-stopped
+    ports:
+      - 8989:8989
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - mount_goes_here:/torrents
+      - mount_goes_here:/downloads
+      - mount_goes_here:/config # config files
+      - mount_goes_here:/tv #tv shows folder
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    image: linuxserver/sonarr:latest
+  
+  radarr:
+    container_name: radarr
+    restart: unless-stopped
+    ports:
+      - 7878:7878
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - mount_goes_here:/torrents
+      - mount_goes_here:/downloads
+      - mount_goes_here:/config # config files
+      - mount_goes_here:/movies # movies folder
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    image: linuxserver/radarr:latest
+
+  bazarr:
+    container_name: bazarr
+    restart: unless-stopped
+    ports:
+      - 6767:6767
+    volumes:
+      - mount_goes_here:/config # config files
+      - mount_goes_here:/movies # movies folder
+      - mount_goes_here:/tv # tv shows folder
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    image: linuxserver/bazarr:latest
+
+  unpackerr:
+    container_name: unpackerr
+    restart: always
+    volumes:
+      - mount_goes_here:/config # config files
+      - mount_goes_here:/downloads
+      - mount_goes_here:/sonarr-tv # tv shows folder
+      - mount_goes_here:/radarr-movies # movies folder
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+      - UN_DEBUG=false
+      - UN_INTERVAL=2m
+      - UN_START_DELAY=1m
+      - UN_RETRY_DELAY=5m
+      - UN_MAX_RETRIES=3
+      - UN_PARALLEL=1
+      - UN_FILE_MODE=0644
+      - UN_DIR_MODE=0755
+      # Sonarr Config
+      - UN_SONARR_0_URL=http://1.2.3.4:8989
+      - UN_SONARR_0_API_KEY=lolwut420blazeit
+      - UN_SONARR_0_PATHS_0=/sonarr-tv
+      - UN_SONARR_0_PROTOCOLS=torrent
+      - UN_SONARR_0_TIMEOUT=10s
+      - UN_SONARR_0_DELETE_ORIG=false
+      - UN_SONARR_0_DELETE_DELAY=5m
+     # Radarr Config
+      - UN_RADARR_0_URL=http://1.2.3.4:7878
+      - UN_RADARR_0_API_KEY=lolwut420blazeit
+      - UN_RADARR_0_PATHS_0=/radarr-movies
+      - UN_RADARR_0_PROTOCOLS=torrent
+      - UN_RADARR_0_TIMEOUT=10s
+      - UN_RADARR_0_DELETE_ORIG=false
+      - UN_RADARR_0_DELETE_DELAY=5m
+    security_opt:
+      - no-new-privileges:true
+    image: golift/unpackerr:latest

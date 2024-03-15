@@ -1,0 +1,124 @@
+version: "3"
+
+services:
+  transmission-openvpn:
+    container_name: transmission-openvpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - mount_goes_here:/data
+    environment:
+      - TRANSMISSION_WEB_UI=transmission-web-control
+      - TRANSMISSION_INCOMPLETE_DIR_ENABLED=true
+      - TRANSMISSION_HOME=your_transmission_home_directory
+      - TRANSMISSION_SCRAPE_PAUSED_TORRENTS_ENABLED=false
+      - OPENVPN_PROVIDER=lolvpn
+      - OPENVPN_CONFIG=lolvpnconfig
+      - OPENVPN_USERNAME=lolusername
+      - OPENVPN_PASSWORD=lolpassword
+      - OPENVPN_OPTS=--inactive 3600 --ping 10 --ping-exit 60
+      - LOCAL_NETWORK=lolcidr
+      - PEER_DNS=true
+      - PEER_DNS_PIN_ROUTES=true
+      - WEBPROXY_ENABLED=true
+      - WEBPROXY_PORT=8118
+      - PUID=1000
+      - PGID=1000
+    logging:
+        driver: json-file
+        options:
+            max-size: 10m
+    ports:
+      - 9091:9091  # This is Transmission Port – managed by VPN Service Network
+      - 9696:9696  # This is Prowlarr Port – managed by VPN Service Network
+      - 8191:8191  # This is Flaresolverr Port – managed by VPN Service Network
+      - 8118:8118  # This is Haugene/Transmission Webproxy Port – managed by VPN Service Network
+    image: haugene/transmission-openvpn
+
+  prowlarr:
+    container_name: prowlarr
+    restart: unless-stopped
+    network_mode: "service:transmission-openvpn"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - mount_goes_here:/config
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    image: linuxserver/prowlarr:latest
+
+  overseerr:
+    container_name: overseerr
+    restart: unless-stopped
+    volumes:
+      - mount_goes_here:/app/config
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 5055:5055
+    image: sctx/overseerr:latest
+
+  flaresolverr:
+    container_name: flaresolverr
+    restart: unless-stopped
+    network_mode: "service:transmission-openvpn"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - HEADLESS=true
+      - PROMETHEUS_ENABLED=false
+      - TEST_URL=https://www.google.com
+      - HOST=0.0.0.0
+      - TZ=America/Los_Angeles
+      - PUID=1000
+      - PGID=1000
+    image: flaresolverr/flaresolverr:latest
+    depends_on:
+        - transmission-openvpn # Set dependency on transmission-openvpn Container
+    healthcheck:
+        test: curl -f http://healthcheck-url-goes-here@localhost:9091 || exit 1
+        interval: 5m00s
+        timeout: 10s
+        retries: 2
+
+  tautulli:
+    container_name: tautulli
+    restart: unless-stopped
+    ports:
+      - 8181:8181
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - mount_goes_here:/config
+    image: lscr.io/linuxserver/tautulli:latest
+
+# This is only useful if youre using NFS mounts for configurations. Do not use NFS mounts for radarr/sonarr/bazarr unless you like sqlite db lock/corruption issues.
+volumes:
+  nfs-torrents:
+    driver_opts:
+      type: "nfs"
+      o: "addr=1.2.3.4,nolock,soft,nfsvers=4"
+      device: ":A"
+  nfs-config-prowlarr:
+    driver_opts:
+      type: "nfs"
+      o: "addr=1.2.3.4,nolock,soft,nfsvers=4"
+      device: ":B"
+  nfs-config-overseerr:
+    driver_opts:
+      type: "nfs"
+      o: "addr=1.2.3.4,nolock,soft,nfsvers=4"
+      device: ":C"
+  nfs-config-tautulli:
+    driver_opts:
+      type: "nfs"
+      o: "addr=1.2.3.4,nolock,soft,nfsvers=4"
+      device: ":D"
